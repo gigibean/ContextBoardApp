@@ -2,6 +2,10 @@
 
 > macOS native context-switching mini app for developers
 
+<p align="center">
+  <img src="docs/screenshot.png" alt="ContextBoard Screenshot" width="600"/>
+</p>
+
 **멀티태스킹할 때 매번 Jira, PR, Figma, IDE를 하나하나 찾아 여는 게 귀찮으셨나요?**
 
 ContextBoard는 티켓별로 관련 리소스를 하나의 스티커로 묶어서, **한 번의 클릭으로 전체 작업 환경을 열고 숨길 수 있는** macOS 메뉴바 앱입니다.
