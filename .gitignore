@@ -33,3 +33,5 @@ Pods/
 .omc/
 .build/
 *.app
+*.dmg
+dist/
