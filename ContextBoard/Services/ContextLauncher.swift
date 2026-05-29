@@ -5,6 +5,9 @@ import Foundation
 @MainActor
 final class ContextLauncher: ObservableObject {
 
+    /// 앱 전역에서 공유되는 단일 인스턴스
+    static let shared = ContextLauncher()
+
     enum LauncherError: LocalizedError {
         case invalidURL(String)
         case applicationNotFound(String)
@@ -25,6 +28,9 @@ final class ContextLauncher: ObservableObject {
     /// 컨텍스트별로 실행된 앱을 추적합니다.
     private var trackedApps: [UUID: Set<pid_t>] = [:]
 
+    /// PID별 지정 모니터를 기억합니다 (unhide 시 재사용).
+    private var pidScreenMap: [pid_t: String] = [:]
+
     /// 워크스페이스 알림 관찰 토큰
     private var terminationObserver: NSObjectProtocol?
 
@@ -43,16 +49,32 @@ final class ContextLauncher: ObservableObject {
     /// 컨텍스트의 모든 활성 아이템을 엽니다.
     func openContext(_ context: WorkContext) async throws {
         var pids = Set<pid_t>()
+        var windowMoves: [(pid_t, String)] = []
 
-        for item in context.enabledItems {
+        for (index, item) in context.enabledItems.enumerated() {
             do {
+                // URL을 연속으로 열면 브라우저가 처리를 못하므로 딜레이
+                if index > 0 && (item.type == .webURL || item.type == .deepLink) {
+                    try? await Task.sleep(for: .milliseconds(500))
+                }
                 if let pid = try await openItem(item) {
                     pids.insert(pid)
+                    // 같은 PID에 여러 모니터가 지정되면 첫 번째 설정 사용
+                    if let screenName = item.preferredScreen, !screenName.isEmpty,
+                       windowMoves.first(where: { $0.0 == pid }) == nil {
+                        windowMoves.append((pid, screenName))
+                    }
                 }
             } catch {
                 // 개별 아이템 실패는 로깅하고 계속 진행
                 print("[ContextLauncher] 아이템 열기 실패 (\(item.label)): \(error.localizedDescription)")
             }
+        }
+
+        // 모니터 지정된 앱 창 이동 및 매핑 저장
+        for (pid, screenName) in windowMoves {
+            pidScreenMap[pid] = screenName
+            await WindowMover.moveWindow(pid: pid, toScreenNamed: screenName)
         }
 
         trackedApps[context.id] = pids
@@ -77,14 +99,37 @@ final class ContextLauncher: ObservableObject {
     }
 
     /// 컨텍스트에 연결된 앱들을 다시 표시합니다.
+    /// 모든 앱을 unhide 후 지정된 모니터로 이동하고, 마지막 앱을 activate합니다.
     func unhideContext(_ context: WorkContext) {
+        var appsToActivate: [NSRunningApplication] = []
+        var windowMoves: [(pid_t, String)] = []
+
         if let pids = trackedApps[context.id] {
             let runningApps = NSWorkspace.shared.runningApplications
             for pid in pids {
                 if let app = runningApps.first(where: { $0.processIdentifier == pid }) {
                     app.unhide()
-                    app.activate()
+                    appsToActivate.append(app)
+
+                    // pidScreenMap에서 모니터 설정 조회 (모든 타입 지원)
+                    if let screenName = pidScreenMap[pid] {
+                        windowMoves.append((pid, screenName))
+                        print("[ContextLauncher] 모니터 이동 예약: \(app.localizedName ?? "?") → \(screenName)")
+                    } else {
+                        print("[ContextLauncher] 모니터 설정 없음: \(app.localizedName ?? "?")")
+                    }
                 }
+            }
+        }
+
+        // 모니터 지정된 앱 창 이동 후 activate
+        Task {
+            for (pid, screenName) in windowMoves {
+                await WindowMover.moveWindow(pid: pid, toScreenNamed: screenName, retryCount: 3)
+            }
+            // 창 이동 완료 후 activate
+            for app in appsToActivate {
+                app.activate(options: [.activateAllWindows])
             }
         }
 

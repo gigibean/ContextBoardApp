@@ -237,11 +237,13 @@ struct ContextEditorView: View {
                     .padding(.vertical, 8)
             } else {
                 ForEach($viewModel.items) { $item in
-                    ContextItemRow(item: $item) {
+                    let isFirstURL = (item.type == .webURL || item.type == .deepLink)
+                        && viewModel.items.first(where: { $0.type == .webURL || $0.type == .deepLink })?.id == item.id
+                    ContextItemRow(item: $item, onDelete: {
                         if let index = viewModel.items.firstIndex(where: { $0.id == item.id }) {
                             viewModel.items.remove(at: index)
                         }
-                    }
+                    }, isFirstURLItem: isFirstURL)
                 }
             }
         }
