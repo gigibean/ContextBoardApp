@@ -8,7 +8,7 @@ final class BoardViewModel {
 
     // MARK: - Properties
 
-    let contextLauncher = ContextLauncher()
+    let contextLauncher = ContextLauncher.shared
     let appTracker = AppTracker()
 
     /// 현재 편집 중인 컨텍스트 (nil이면 에디터 닫힘)

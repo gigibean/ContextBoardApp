@@ -12,6 +12,10 @@ struct ContextBoardApp: App {
     @State private var isPanelVisible = false
 
     init() {
+        // stdout 버퍼링 비활성화 (로그 즉시 출력)
+        setbuf(stdout, nil)
+        setbuf(stderr, nil)
+
         do {
             let schema = Schema([
                 WorkContext.self,
@@ -25,6 +29,12 @@ struct ContextBoardApp: App {
             )
             modelContainer = try ModelContainer(for: schema, configurations: [config])
             print("[ContextBoard] ModelContainer 초기화 성공")
+
+            // Accessibility 권한이 없으면 요청 다이얼로그 표시
+            if !WindowMover.isTrusted {
+                WindowMover.requestAccessibilityPermission()
+                print("[ContextBoard] Accessibility 권한 요청 다이얼로그 표시")
+            }
         } catch {
             fatalError("[ContextBoard] SwiftData ModelContainer 생성 실패: \(error.localizedDescription)")
         }
@@ -86,8 +96,7 @@ struct ContextBoardApp: App {
                 ForEach(contexts.prefix(7)) { context in
                     Button {
                         Task { @MainActor in
-                            let launcher = ContextLauncher()
-                            try? await launcher.toggleContext(context)
+                            try? await ContextLauncher.shared.toggleContext(context)
                         }
                     } label: {
                         HStack {

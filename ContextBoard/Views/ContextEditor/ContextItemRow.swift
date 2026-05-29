@@ -5,6 +5,8 @@ import AppKit
 struct ContextItemRow: View {
     @Binding var item: ContextEditorViewModel.EditableItem
     let onDelete: () -> Void
+    /// URL/딥링크 타입에서 모니터 선택이 가능한 첫 번째 아이템인지 여부
+    var isFirstURLItem: Bool = true
 
     /// 파일 피커가 필요한 타입인지 여부
     private var needsBrowseButton: Bool {
@@ -95,6 +97,45 @@ struct ContextItemRow: View {
                     .help("프로젝트 폴더 선택")
 
                     Spacer().frame(width: 20)
+                }
+            }
+
+            // 모니터 선택 행
+            if NSScreen.screens.count > 1 {
+                let isURLType = item.type == .webURL || item.type == .deepLink
+
+                if !isURLType || isFirstURLItem {
+                    // 앱/파일/폴더 또는 첫 번째 URL: 모니터 선택 가능
+                    HStack(spacing: 8) {
+                        Spacer()
+                            .frame(width: 22)
+
+                        Image(systemName: "display")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 110, alignment: .trailing)
+
+                        Text("실행 모니터")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 100, alignment: .leading)
+
+                        Picker("", selection: $item.preferredScreen) {
+                            Text("기본").tag("")
+                            ForEach(NSScreen.screens, id: \.localizedName) { screen in
+                                Text(screen.localizedName).tag(screen.localizedName)
+                            }
+                        }
+                        .font(.system(size: 11))
+
+                        if isURLType {
+                            Text("(브라우저 전체)")
+                                .font(.system(size: 9))
+                                .foregroundStyle(.tertiary)
+                        }
+
+                        Spacer().frame(width: 20)
+                    }
                 }
             }
         }

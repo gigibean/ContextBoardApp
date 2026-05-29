@@ -13,6 +13,8 @@ final class ContextItem {
     var filePath: String?
     var sortOrder: Int
     var isEnabled: Bool
+    /// 앱을 열 모니터 이름 (nil이면 기본 모니터)
+    var preferredScreen: String?
 
     @Relationship(inverse: \WorkContext.items)
     var context: WorkContext?
@@ -26,6 +28,7 @@ final class ContextItem {
         filePath: String? = nil,
         sortOrder: Int = 0,
         isEnabled: Bool = true,
+        preferredScreen: String? = nil,
         context: WorkContext? = nil
     ) {
         self.id = id
@@ -36,6 +39,7 @@ final class ContextItem {
         self.filePath = filePath
         self.sortOrder = sortOrder
         self.isEnabled = isEnabled
+        self.preferredScreen = preferredScreen
         self.context = context
     }
 

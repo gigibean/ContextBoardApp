@@ -34,6 +34,7 @@ final class ContextEditorViewModel {
         var label: String
         var value: String // URL, bundleId, 또는 filePath
         var projectPath: String // 애플리케이션 타입일 때 함께 열 프로젝트 폴더 경로
+        var preferredScreen: String // 앱을 열 모니터 이름 (빈 문자열이면 기본)
         var isEnabled: Bool
 
         init(
@@ -42,6 +43,7 @@ final class ContextEditorViewModel {
             label: String = "",
             value: String = "",
             projectPath: String = "",
+            preferredScreen: String = "",
             isEnabled: Bool = true
         ) {
             self.id = id
@@ -49,6 +51,7 @@ final class ContextEditorViewModel {
             self.label = label
             self.value = value
             self.projectPath = projectPath
+            self.preferredScreen = preferredScreen
             self.isEnabled = isEnabled
         }
     }
@@ -75,6 +78,7 @@ final class ContextEditorViewModel {
                     label: item.label,
                     value: item.urlString ?? item.bundleIdentifier ?? item.filePath ?? "",
                     projectPath: item.type == .application ? (item.filePath ?? "") : "",
+                    preferredScreen: item.preferredScreen ?? "",
                     isEnabled: item.isEnabled
                 )
             }
@@ -106,6 +110,11 @@ final class ContextEditorViewModel {
                 isEnabled: editableItem.isEnabled,
                 context: context
             )
+
+            // 모든 타입에서 모니터 설정 저장
+            if !editableItem.preferredScreen.isEmpty {
+                item.preferredScreen = editableItem.preferredScreen
+            }
 
             switch editableItem.type {
             case .webURL, .deepLink:
