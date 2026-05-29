@@ -110,6 +110,8 @@ struct ContextItemRow: View {
     // MARK: - File Picker
 
     private func browseForItem() {
+        guard let window = NSApp.keyWindow else { return }
+
         let panel = NSOpenPanel()
         panel.canChooseFiles = item.type != .directory
         panel.canChooseDirectories = item.type == .directory || item.type == .application
@@ -131,37 +133,41 @@ struct ContextItemRow: View {
             return
         }
 
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        panel.beginSheetModal(for: window) { response in
+            guard response == .OK, let url = panel.url else { return }
 
-        if item.type == .application {
-            // .app 번들에서 bundle identifier 추출
-            if let bundle = Bundle(url: url),
-               let bundleId = bundle.bundleIdentifier {
-                item.value = bundleId
+            if item.type == .application {
+                if let bundle = Bundle(url: url),
+                   let bundleId = bundle.bundleIdentifier {
+                    item.value = bundleId
+                } else {
+                    item.value = url.path
+                }
+                if item.label.isEmpty {
+                    item.label = url.deletingPathExtension().lastPathComponent
+                }
             } else {
                 item.value = url.path
-            }
-            // 라벨이 비어있으면 앱 이름으로 자동 채우기
-            if item.label.isEmpty {
-                item.label = url.deletingPathExtension().lastPathComponent
-            }
-        } else {
-            item.value = url.path
-            // 라벨이 비어있으면 파일/폴더 이름으로 자동 채우기
-            if item.label.isEmpty {
-                item.label = url.lastPathComponent
+                if item.label.isEmpty {
+                    item.label = url.lastPathComponent
+                }
             }
         }
     }
+
     private func browseForProjectFolder() {
+        guard let window = NSApp.keyWindow else { return }
+
         let panel = NSOpenPanel()
         panel.title = "프로젝트 폴더 선택"
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
 
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        item.projectPath = url.path
+        panel.beginSheetModal(for: window) { response in
+            guard response == .OK, let url = panel.url else { return }
+            item.projectPath = url.path
+        }
     }
 }
 

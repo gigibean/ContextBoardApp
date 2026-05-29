@@ -10,28 +10,20 @@ struct SettingsView: View {
     @State private var launchAtLogin = false
     @State private var gridSnap = false
     @State private var hotkey = "Cmd+Shift+B"
-    @State private var jiraSiteURL = ""
+    @State private var mcpViewModel = MCPViewModel()
 
     private var settings: BoardSettings? { allSettings.first }
 
     var body: some View {
         TabView {
             generalTab
-                .tabItem {
-                    Label("일반", systemImage: "gearshape")
-                }
-
+                .tabItem { Label("일반", systemImage: "gearshape") }
             backgroundTab
-                .tabItem {
-                    Label("배경", systemImage: "paintpalette")
-                }
-
+                .tabItem { Label("배경", systemImage: "paintpalette") }
             aboutTab
-                .tabItem {
-                    Label("정보", systemImage: "info.circle")
-                }
+                .tabItem { Label("정보", systemImage: "info.circle") }
         }
-        .frame(width: 450, height: 350)
+        .padding(.top, 8)
         .onAppear {
             loadSettings()
         }
@@ -40,7 +32,8 @@ struct SettingsView: View {
     // MARK: - General Tab
 
     private var generalTab: some View {
-        Form {
+        ScrollView {
+            Form {
             Section("동작") {
                 Toggle("로그인 시 자동 실행", isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, newValue in
@@ -69,26 +62,7 @@ struct SettingsView: View {
                 }
             }
 
-            Section("Jira 연동") {
-                HStack {
-                    Text("Jira 사이트 URL")
-                    Spacer()
-                    TextField("예: myteam.atlassian.net", text: $jiraSiteURL)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 220)
-                        .onSubmit {
-                            updateSetting { $0.jiraSiteURL = jiraSiteURL }
-                        }
-                        .onChange(of: jiraSiteURL) { _, newValue in
-                            updateSetting { $0.jiraSiteURL = newValue }
-                        }
-                }
-                Text("Jira MCP 연동에 사용됩니다. 예: myteam.atlassian.net")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            }
-
-            Section("Claude CLI") {
+            Section("Jira 연동 (Claude CLI)") {
                 HStack {
                     Text("CLI 경로")
                     Spacer()
@@ -102,22 +76,65 @@ struct SettingsView: View {
                             .font(.caption)
                     }
                 }
+
+                HStack {
+                    Text("MCP 연동 상태")
+                    Spacer()
+                    mcpConnectionStatusView
+                }
+
+                if case .failed(let message) = mcpViewModel.connectionState {
+                    Text(message)
+                        .font(.caption2)
+                        .foregroundStyle(.red)
+                        .lineLimit(3)
+                }
+
+                HStack {
+                    Spacer()
+
+                    if case .failed = mcpViewModel.connectionState {
+                        Button(action: openTerminalWithClaude) {
+                            Label("터미널에서 MCP 설정", systemImage: "terminal")
+                                .font(.caption)
+                        }
+                    }
+
+                    Button(action: {
+                        Task {
+                            if let detectedURL = await mcpViewModel.testConnection(),
+                               !detectedURL.isEmpty {
+                                updateSetting { $0.jiraSiteURL = detectedURL }
+                            }
+                        }
+                    }) {
+                        Label("연결 테스트", systemImage: "arrow.triangle.2.circlepath")
+                            .font(.caption)
+                    }
+                    .disabled(
+                        mcpViewModel.connectionState == .testing
+                        || !FileManager.default.fileExists(atPath: "/usr/local/bin/claude")
+                    )
+                }
             }
         }
-        .formStyle(.grouped)
-        .padding()
+            .formStyle(.grouped)
+        }
     }
 
     // MARK: - Background Tab
 
     private var backgroundTab: some View {
-        BackgroundSettingsView()
+        ScrollView {
+            BackgroundSettingsView()
+        }
     }
 
     // MARK: - About Tab
 
     private var aboutTab: some View {
-        VStack(spacing: 16) {
+        ScrollView {
+            VStack(spacing: 16) {
             Image(systemName: "square.stack.3d.up.fill")
                 .font(.system(size: 48))
                 .foregroundStyle(
@@ -139,9 +156,50 @@ struct SettingsView: View {
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
 
-            Spacer()
+                Spacer()
+            }
+            .padding(30)
         }
-        .padding(30)
+    }
+
+    // MARK: - MCP Connection Status
+
+    @ViewBuilder
+    private var mcpConnectionStatusView: some View {
+        switch mcpViewModel.connectionState {
+        case .untested:
+            Label("확인 필요", systemImage: "questionmark.circle")
+                .foregroundStyle(.secondary)
+                .font(.caption)
+        case .testing:
+            HStack(spacing: 4) {
+                ProgressView()
+                    .controlSize(.mini)
+                Text("확인 중...")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        case .connected(let displayName, let siteURL):
+            VStack(alignment: .trailing, spacing: 2) {
+                Label("연결됨", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                    .font(.caption)
+                if let name = displayName {
+                    Text(name)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                if let url = siteURL {
+                    Text(url)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+        case .failed:
+            Label("연결 실패", systemImage: "xmark.circle.fill")
+                .foregroundStyle(.red)
+                .font(.caption)
+        }
     }
 
     // MARK: - Helpers
@@ -151,7 +209,6 @@ struct SettingsView: View {
         launchAtLogin = settings.launchAtLogin
         gridSnap = settings.gridSnapEnabled
         hotkey = settings.globalHotkey ?? "Cmd+Shift+B"
-        jiraSiteURL = settings.jiraSiteURL
     }
 
     private func updateSetting(_ update: (BoardSettings) -> Void) {
@@ -162,6 +219,18 @@ struct SettingsView: View {
         } catch {
             print("[Settings] 설정 저장 실패: \(error.localizedDescription)")
         }
+    }
+
+    private func openTerminalWithClaude() {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        process.arguments = ["-e", """
+            tell application "Terminal"
+                activate
+                do script "claude"
+            end tell
+        """]
+        try? process.run()
     }
 
     private func updateLaunchAtLogin(_ enabled: Bool) {
