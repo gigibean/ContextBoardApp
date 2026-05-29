@@ -14,8 +14,19 @@ struct StickerBoardView: View {
     @State private var contextToTerminate: WorkContext?
     @State private var showTerminateConfirm = false
     @State private var isShowingBulkImport = false
+    @State private var searchText = ""
 
     private var settings: BoardSettings? { allSettings.first }
+
+    private var filteredContexts: [WorkContext] {
+        guard !searchText.isEmpty else { return contexts }
+        let query = searchText.lowercased()
+        return contexts.filter {
+            $0.ticketKey.lowercased().contains(query)
+            || $0.title.lowercased().contains(query)
+            || $0.tags.contains { $0.lowercased().contains(query) }
+        }
+    }
 
     var body: some View {
         ZStack {
@@ -23,9 +34,10 @@ struct StickerBoardView: View {
             BoardBackgroundView(settings: settings)
                 .ignoresSafeArea()
 
-            // 스티커 레이어
-            ForEach(contexts) { context in
+            // 스티커 레이어 (고정된 스티커가 위에 표시)
+            ForEach(filteredContexts) { context in
                 stickerNode(for: context)
+                    .zIndex(context.isPinned == true ? 1 : 0)
             }
 
             // 빈 상태
@@ -135,11 +147,15 @@ struct StickerBoardView: View {
         .gesture(
             DragGesture()
                 .onChanged { value in
-                    context.positionX = value.location.x
-                    context.positionY = value.location.y
+                    let pos = clampPosition(value.location)
+                    context.positionX = pos.x
+                    context.positionY = pos.y
                 }
                 .onEnded { value in
-                    viewModel.updatePosition(context, to: value.location)
+                    let pos = snapToGrid(clampPosition(value.location))
+                    withAnimation(.spring(duration: 0.2)) {
+                        viewModel.updatePosition(context, to: pos)
+                    }
                     try? modelContext.save()
                 }
         )
@@ -165,9 +181,25 @@ struct StickerBoardView: View {
             Divider()
 
             Button {
+                context.isPinned = !(context.isPinned ?? false)
+                try? modelContext.save()
+            } label: {
+                Label(
+                    context.isPinned == true ? "고정 해제" : "고정",
+                    systemImage: context.isPinned == true ? "pin.slash" : "pin"
+                )
+            }
+
+            Button {
                 viewModel.editingContext = context
             } label: {
                 Label("편집", systemImage: "pencil")
+            }
+
+            Button {
+                viewModel.duplicateContext(context, in: modelContext)
+            } label: {
+                Label("복제", systemImage: "doc.on.doc")
             }
 
             Button(role: .destructive) {
@@ -177,6 +209,28 @@ struct StickerBoardView: View {
                 Label("삭제", systemImage: "trash")
             }
         }
+    }
+
+    // MARK: - Position Helpers
+
+    private let stickerPadding: CGFloat = 40
+    private let gridSize: CGFloat = 60
+
+    /// 스티커가 보드 밖으로 나가지 않도록 좌표를 제한합니다.
+    private func clampPosition(_ point: CGPoint) -> CGPoint {
+        CGPoint(
+            x: max(stickerPadding, point.x),
+            y: max(stickerPadding, point.y)
+        )
+    }
+
+    /// 그리드 스냅이 활성화되어 있으면 가장 가까운 그리드 포인트로 스냅합니다.
+    private func snapToGrid(_ point: CGPoint) -> CGPoint {
+        guard settings?.gridSnapEnabled == true else { return point }
+        return CGPoint(
+            x: (point.x / gridSize).rounded() * gridSize,
+            y: (point.y / gridSize).rounded() * gridSize
+        )
     }
 
     // MARK: - Empty State
@@ -205,6 +259,32 @@ struct StickerBoardView: View {
 
     private var toolbarButtons: some View {
         HStack(spacing: 8) {
+            HStack(spacing: 4) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                    .font(.system(size: 11))
+                TextField("검색", text: $searchText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12))
+                if !searchText.isEmpty {
+                    Button {
+                        searchText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                            .font(.system(size: 10))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(.ultraThinMaterial)
+            )
+            .frame(width: 140)
+
             PastelButton("", icon: "tray.and.arrow.down", color: "#B0E0E6") {
                 isShowingBulkImport = true
             }

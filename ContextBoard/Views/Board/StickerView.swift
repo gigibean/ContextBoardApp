@@ -44,6 +44,14 @@ struct StickerView: View {
             x: 0,
             y: context.isActive ? 0 : 3
         )
+        .overlay(alignment: .topTrailing) {
+            if context.isPinned == true {
+                Image(systemName: "pin.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.orange)
+                    .padding(6)
+            }
+        }
         .rotationEffect(.degrees(tiltAngle))
         .scaleEffect(isHovered ? 1.08 : 1.0)
         .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isHovered)

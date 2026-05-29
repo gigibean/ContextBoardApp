@@ -28,7 +28,7 @@ actor MCPService {
         var errorDescription: String? {
             switch self {
             case .cliNotFound:
-                return "Claude CLI를 찾을 수 없습니다. /usr/local/bin/claude 경로를 확인하세요."
+                return "Claude CLI를 찾을 수 없습니다. /usr/local/bin/claude 또는 /opt/homebrew/bin/claude 경로를 확인하세요."
             case .fetchFailed(let detail):
                 return "Jira 데이터 가져오기 실패: \(detail)"
             case .parseFailed(let detail):
@@ -37,6 +37,19 @@ actor MCPService {
                 return "요청이 시간 초과되었습니다. 다시 시도해주세요."
             }
         }
+    }
+
+    // MARK: - CLI Detection
+
+    /// Claude CLI 검색 경로 목록 (우선순위 순)
+    private static let cliSearchPaths = [
+        "/usr/local/bin/claude",        // Intel Mac / 수동 설치
+        "/opt/homebrew/bin/claude",     // Apple Silicon Homebrew
+    ]
+
+    /// 설치된 Claude CLI 경로를 찾습니다. 없으면 nil.
+    static var resolvedCLIPath: String? {
+        cliSearchPaths.first { FileManager.default.fileExists(atPath: $0) }
     }
 
     // MARK: - Properties
@@ -51,8 +64,8 @@ actor MCPService {
 
     private let jiraSiteURL: String
 
-    init(claudePath: String = "/usr/local/bin/claude", jiraSiteURL: String = "") {
-        self.claudePath = claudePath
+    init(claudePath: String? = nil, jiraSiteURL: String = "") {
+        self.claudePath = claudePath ?? MCPService.resolvedCLIPath ?? "/usr/local/bin/claude"
         self.jiraSiteURL = jiraSiteURL
     }
 

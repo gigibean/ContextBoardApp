@@ -45,6 +45,9 @@ sed -i '' "s/VERSION=\".*\"/VERSION=\"${VERSION}\"/" create-dmg.sh
 # Info.plist 버전도 업데이트
 sed -i '' "s/<string>[0-9]*\.[0-9]*\.[0-9]*<\/string>/<string>${VERSION}<\/string>/g" create-dmg.sh
 
+# AppVersion.swift 버전 업데이트
+sed -i '' "s/static let current = \".*\"/static let current = \"${VERSION}\"/" ContextBoard/Utilities/AppVersion.swift
+
 # 2. DMG 빌드
 echo ""
 bash create-dmg.sh
@@ -58,7 +61,7 @@ fi
 # 3. 버전 변경 커밋 + 태그
 echo ""
 echo "📦 커밋 & 태그 생성 중..."
-git add create-dmg.sh
+git add create-dmg.sh ContextBoard/Utilities/AppVersion.swift
 git commit -m "release: ${TAG}" --allow-empty
 
 git tag -a "$TAG" -m "Release ${TAG}"

@@ -44,8 +44,13 @@ final class MCPViewModel {
 
     /// 티켓 키로 Jira에서 컨텍스트를 가져옵니다.
     func fetch(ticketKey: String) async {
-        guard !ticketKey.isEmpty else {
+        let trimmed = ticketKey.trimmingCharacters(in: .whitespaces).uppercased()
+        guard !trimmed.isEmpty else {
             state = .error("티켓 키를 입력해주세요.")
+            return
+        }
+        guard trimmed.range(of: #"^[A-Z][A-Z0-9]+-\d+$"#, options: .regularExpression) != nil else {
+            state = .error("올바른 티켓 키 형식이 아닙니다. 예: PROJ-1234")
             return
         }
 
@@ -53,7 +58,7 @@ final class MCPViewModel {
         fetchedItems = []
 
         do {
-            let result = try await mcpService.fetchContext(ticketKey: ticketKey)
+            let result = try await mcpService.fetchContext(ticketKey: trimmed)
             let contextItems = await mcpService.convertToContextItems(result)
 
             ticketSummary = result.summary

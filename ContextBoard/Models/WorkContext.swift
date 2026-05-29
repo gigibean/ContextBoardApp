@@ -16,6 +16,7 @@ final class WorkContext {
     var positionX: Double
     var positionY: Double
     var isActive: Bool
+    var isPinned: Bool?
     var createdAt: Date
     var updatedAt: Date
     var tags: [String]
@@ -35,6 +36,7 @@ final class WorkContext {
         positionX: Double = 100,
         positionY: Double = 100,
         isActive: Bool = false,
+        isPinned: Bool? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         tags: [String] = [],
@@ -50,6 +52,7 @@ final class WorkContext {
         self.positionX = positionX
         self.positionY = positionY
         self.isActive = isActive
+        self.isPinned = isPinned
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.tags = tags

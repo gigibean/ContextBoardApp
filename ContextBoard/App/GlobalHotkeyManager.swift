@@ -9,6 +9,20 @@ final class GlobalHotkeyManager {
 
     static let shared = GlobalHotkeyManager()
 
+    struct HotkeyPreset {
+        let label: String
+        let keyCode: UInt32
+        let modifiers: UInt32
+    }
+
+    static let presets: [HotkeyPreset] = [
+        HotkeyPreset(label: "Cmd+Shift+B", keyCode: UInt32(kVK_ANSI_B), modifiers: UInt32(cmdKey | shiftKey)),
+        HotkeyPreset(label: "Cmd+Shift+C", keyCode: UInt32(kVK_ANSI_C), modifiers: UInt32(cmdKey | shiftKey)),
+        HotkeyPreset(label: "Cmd+Shift+X", keyCode: UInt32(kVK_ANSI_X), modifiers: UInt32(cmdKey | shiftKey)),
+        HotkeyPreset(label: "Cmd+Option+B", keyCode: UInt32(kVK_ANSI_B), modifiers: UInt32(cmdKey | optionKey)),
+        HotkeyPreset(label: "Cmd+Ctrl+B", keyCode: UInt32(kVK_ANSI_B), modifiers: UInt32(cmdKey | controlKey)),
+    ]
+
     private var hotkeyRef: EventHotKeyRef?
     private var onToggle: (() -> Void)?
 
@@ -67,12 +81,19 @@ final class GlobalHotkeyManager {
         }
     }
 
+    /// 프리셋 라벨로 핫키를 재등록합니다.
+    func reregister(presetLabel: String) {
+        guard let preset = Self.presets.first(where: { $0.label == presetLabel }),
+              let handler = onToggle else { return }
+        unregister()
+        register(keyCode: preset.keyCode, modifiers: preset.modifiers, handler: handler)
+    }
+
     /// 등록된 핫키를 해제합니다.
     func unregister() {
         guard let ref = hotkeyRef else { return }
         UnregisterEventHotKey(ref)
         hotkeyRef = nil
-        onToggle = nil
         print("[GlobalHotkey] 핫키 해제됨")
     }
 }

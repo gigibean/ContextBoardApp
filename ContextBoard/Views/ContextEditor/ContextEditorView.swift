@@ -16,6 +16,7 @@ struct ContextEditorView: View {
     private var jiraSiteURL: String { allSettings.first?.jiraSiteURL ?? "" }
     @State private var isShowingMCPFetch = false
     @State private var isShowingIconPicker = false
+    @State private var saveError: String?
 
     private var isEditing: Bool { context != nil }
 
@@ -90,6 +91,14 @@ struct ContextEditorView: View {
                     isShowingIconPicker = false
                 }
             )
+        }
+        .alert("저장 오류", isPresented: .init(
+            get: { saveError != nil },
+            set: { if !$0 { saveError = nil } }
+        )) {
+            Button("확인") { saveError = nil }
+        } message: {
+            Text(saveError ?? "")
         }
     }
 
@@ -296,7 +305,7 @@ struct ContextEditorView: View {
             try modelContext.save()
             onSave(targetContext)
         } catch {
-            print("[ContextEditor] 저장 실패: \(error.localizedDescription)")
+            saveError = "저장 실패: \(error.localizedDescription)"
         }
     }
 }
