@@ -63,6 +63,66 @@ actor MCPService {
         FileManager.default.fileExists(atPath: claudePath)
     }
 
+    /// MCP 연결 테스트 결과
+    struct ConnectionTestResult: Codable {
+        let connected: Bool
+        let displayName: String?
+        let jiraSiteURL: String?
+    }
+
+    /// Claude CLI를 통해 Atlassian Rovo MCP 연결을 테스트하고, Jira 사이트 URL을 자동 감지합니다.
+    func testMCPConnection() async throws -> ConnectionTestResult {
+        guard isCLIAvailable else {
+            throw MCPError.cliNotFound
+        }
+
+        let prompt = """
+        Atlassian 사용자 정보와 접근 가능한 Jira 사이트를 확인해서 아래 JSON 형식으로만 응답해. 설명 없이 순수 JSON만 출력해.
+        {"connected":true,"displayName":"사용자 이름","jiraSiteURL":"example.atlassian.net"}
+
+        규칙:
+        - atlassianUserInfo로 사용자 이름을 가져와
+        - getAccessibleAtlassianResources로 Jira Cloud 사이트 URL을 가져와
+        - jiraSiteURL은 "https://" 없이 도메인만 (예: myteam.atlassian.net)
+        - 출력은 반드시 { 로 시작하고 } 로 끝나야 함
+        """
+
+        let output: String
+        do {
+            output = try await processRunner.run(
+                executable: claudePath,
+                arguments: [
+                    "--print",
+                    "--model", "claude-haiku-4-5-20251001",
+                    "--max-budget-usd", "0.50",
+                    "--allowedTools",
+                    "mcp__claude_ai_Atlassian_Rovo__atlassianUserInfo",
+                    "mcp__claude_ai_Atlassian_Rovo__getAccessibleAtlassianResources",
+                    "-p", prompt
+                ],
+                timeout: 45
+            )
+        } catch let error as ProcessRunner.ProcessError {
+            switch error {
+            case .timeout:
+                throw MCPError.timeout
+            default:
+                throw MCPError.fetchFailed(error.localizedDescription)
+            }
+        }
+
+        let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let jsonStart = trimmed.range(of: "{"),
+              let jsonEnd = trimmed.range(of: "}", options: .backwards) else {
+            throw MCPError.parseFailed("JSON을 찾을 수 없습니다")
+        }
+        let jsonString = String(trimmed[jsonStart.lowerBound...jsonEnd.upperBound])
+        guard let data = jsonString.data(using: .utf8) else {
+            throw MCPError.parseFailed("UTF-8 인코딩 실패")
+        }
+        return try JSONDecoder().decode(ConnectionTestResult.self, from: data)
+    }
+
     /// 티켓 키로 Jira에서 컨텍스트를 가져옵니다.
     /// - Parameter ticketKey: Jira 티켓 키 (예: "PROJ-1234")
     /// - Returns: 가져온 컨텍스트 정보

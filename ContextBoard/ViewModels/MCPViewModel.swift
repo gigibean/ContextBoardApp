@@ -14,7 +14,15 @@ final class MCPViewModel {
         case error(String)
     }
 
+    enum ConnectionState: Equatable {
+        case untested
+        case testing
+        case connected(displayName: String?, detectedSiteURL: String?)
+        case failed(String)
+    }
+
     var state: FetchState = .idle
+    var connectionState: ConnectionState = .untested
     var fetchedItems: [ContextEditorViewModel.EditableItem] = []
     var ticketSummary: String = ""
     var ticketStatus: String = ""
@@ -83,6 +91,28 @@ final class MCPViewModel {
             state = .success(itemCount: result.tickets.count)
         } catch {
             state = .error(error.localizedDescription)
+        }
+    }
+
+    // MARK: - Connection Test
+
+    /// Claude CLI + Atlassian Rovo MCP 연결을 테스트하고, Jira 사이트 URL을 자동 감지합니다.
+    /// - Returns: 감지된 Jira 사이트 URL (없으면 nil)
+    @discardableResult
+    func testConnection() async -> String? {
+        connectionState = .testing
+        let service = MCPService(jiraSiteURL: jiraSiteURL)
+
+        do {
+            let result = try await service.testMCPConnection()
+            connectionState = .connected(
+                displayName: result.displayName,
+                detectedSiteURL: result.jiraSiteURL
+            )
+            return result.jiraSiteURL
+        } catch {
+            connectionState = .failed(error.localizedDescription)
+            return nil
         }
     }
 

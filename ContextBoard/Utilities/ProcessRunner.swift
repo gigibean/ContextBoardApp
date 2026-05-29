@@ -1,5 +1,24 @@
 import Foundation
 
+/// stderr 데이터를 스레드 안전하게 수집하는 헬퍼 클래스입니다.
+/// readabilityHandler 콜백은 GCD 프라이빗 큐에서 호출되므로 lock이 필요합니다.
+private final class StderrCapture: @unchecked Sendable {
+    private let lock = NSLock()
+    private var data = Data()
+
+    func append(_ chunk: Data) {
+        lock.lock()
+        data.append(chunk)
+        lock.unlock()
+    }
+
+    var string: String? {
+        lock.lock()
+        defer { lock.unlock() }
+        return String(data: data, encoding: .utf8)
+    }
+}
+
 /// CLI 프로세스를 비동기로 실행하는 유틸리티입니다.
 /// 주로 Claude CLI 호출에 사용됩니다.
 actor ProcessRunner {
@@ -58,15 +77,31 @@ actor ProcessRunner {
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
 
+        // stderr를 비동기로 계속 드레인하여 파이프 버퍼 데드락 방지
+        // (Claude CLI는 MCP 도구 호출 시 stderr에 대량 로그를 출력하므로,
+        //  64KB 파이프 버퍼가 가득 차면 프로세스가 블로킹되어 데드락 발생)
+        let stderrCapture = StderrCapture()
+        stderrPipe.fileHandleForReading.readabilityHandler = { handle in
+            let chunk = handle.availableData
+            if !chunk.isEmpty {
+                stderrCapture.append(chunk)
+            }
+        }
+
         return try await withThrowingTaskGroup(of: String.self) { group in
             group.addTask {
                 try process.run()
                 let outputData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
                 process.waitUntilExit()
 
+                // readabilityHandler 정리
+                stderrPipe.fileHandleForReading.readabilityHandler = nil
+
                 guard process.terminationStatus == 0 else {
-                    let errorData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-                    let errorMessage = String(data: errorData, encoding: .utf8) ?? "알 수 없는 오류"
+                    // Claude CLI는 에러를 stdout에 출력하는 경우가 있으므로 양쪽 모두 확인
+                    let stderr = stderrCapture.string ?? ""
+                    let stdout = String(data: outputData, encoding: .utf8) ?? ""
+                    let errorMessage = stderr.isEmpty ? stdout : stderr
                     throw ProcessError.executionFailed("exit \(process.terminationStatus): \(errorMessage)")
                 }
 
@@ -79,6 +114,7 @@ actor ProcessRunner {
 
             group.addTask {
                 try await Task.sleep(for: .seconds(timeout))
+                stderrPipe.fileHandleForReading.readabilityHandler = nil
                 process.terminate()
                 throw ProcessError.timeout(timeout)
             }

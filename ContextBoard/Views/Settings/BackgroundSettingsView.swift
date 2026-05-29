@@ -158,10 +158,12 @@ struct BackgroundSettingsView: View {
     }
 
     private func selectImage() {
+        guard let window = NSApp.keyWindow else { return }
+
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.png, .jpeg, .heic]
         panel.allowsMultipleSelection = false
-        panel.begin { response in
+        panel.beginSheetModal(for: window) { response in
             guard response == .OK, let url = panel.url else { return }
             do {
                 let data = try Data(contentsOf: url)

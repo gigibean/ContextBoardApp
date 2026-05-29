@@ -35,12 +35,6 @@ struct ContextBoardApp: App {
         MenuBarExtra("ContextBoard", systemImage: "cube.fill") {
             menuBarContent
         }
-
-        // 설정 윈도우
-        Settings {
-            SettingsView()
-                .modelContainer(modelContainer)
-        }
     }
 
     // MARK: - Menu Bar Content
@@ -63,6 +57,11 @@ struct ContextBoardApp: App {
         quickContextSection
 
         Divider()
+
+        Button("설정...") {
+            appDelegate.openSettings(modelContainer: modelContainer)
+        }
+        .keyboardShortcut(",")
 
         Button("종료") {
             NSApplication.shared.terminate(nil)
