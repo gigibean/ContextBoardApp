@@ -9,6 +9,7 @@ struct BulkImportView: View {
     @Query private var allSettings: [BoardSettings]
     @State private var mcpViewModel = MCPViewModel()
     @State private var selectedKeys: Set<String> = []
+    @State private var saveError: String?
 
     let onDone: () -> Void
 
@@ -84,6 +85,14 @@ struct BulkImportView: View {
             .padding(.vertical, 12)
         }
         .frame(width: 520, height: 500)
+        .alert("저장 오류", isPresented: .init(
+            get: { saveError != nil },
+            set: { if !$0 { saveError = nil } }
+        )) {
+            Button("확인") { saveError = nil }
+        } message: {
+            Text(saveError ?? "")
+        }
     }
 
     // MARK: - State View
@@ -289,10 +298,9 @@ struct BulkImportView: View {
 
         do {
             try modelContext.save()
+            onDone()
         } catch {
-            print("[BulkImport] 저장 실패: \(error.localizedDescription)")
+            saveError = "저장 실패: \(error.localizedDescription)"
         }
-
-        onDone()
     }
 }

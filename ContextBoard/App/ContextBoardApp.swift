@@ -74,12 +74,16 @@ struct ContextBoardApp: App {
         let fetchDescriptor = FetchDescriptor<WorkContext>(
             sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
         )
-        if let contexts = try? modelContainer.mainContext.fetch(fetchDescriptor) {
+        if let allContexts = try? modelContainer.mainContext.fetch(fetchDescriptor) {
+            let contexts = allContexts.sorted { a, b in
+                if (a.isPinned ?? false) != (b.isPinned ?? false) { return a.isPinned == true }
+                return a.updatedAt > b.updatedAt
+            }
             if contexts.isEmpty {
                 Text("컨텍스트 없음")
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(contexts.prefix(5)) { context in
+                ForEach(contexts.prefix(7)) { context in
                     Button {
                         Task { @MainActor in
                             let launcher = ContextLauncher()
@@ -87,6 +91,11 @@ struct ContextBoardApp: App {
                         }
                     } label: {
                         HStack {
+                            if context.isPinned == true {
+                                Image(systemName: "pin.fill")
+                                    .font(.system(size: 8))
+                                    .foregroundStyle(.orange)
+                            }
                             Image(systemName: context.isActive ? "circle.fill" : "circle")
                                 .font(.system(size: 8))
                                 .foregroundStyle(context.isActive ? .green : .gray)

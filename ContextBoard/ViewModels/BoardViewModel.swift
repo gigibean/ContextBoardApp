@@ -63,6 +63,39 @@ final class BoardViewModel {
         return context
     }
 
+    /// 컨텍스트 복제
+    func duplicateContext(_ context: WorkContext, in modelContext: ModelContext) {
+        let copy = WorkContext(
+            ticketKey: context.ticketKey,
+            title: "\(context.title) (복사)",
+            iconType: context.iconType,
+            customIconData: context.customIconData,
+            defaultIconName: context.defaultIconName,
+            accentColorHex: context.accentColorHex,
+            positionX: context.positionX + 30,
+            positionY: context.positionY + 30,
+            tags: context.tags,
+            notes: context.notes
+        )
+        modelContext.insert(copy)
+
+        for item in context.items {
+            let itemCopy = ContextItem(
+                type: item.type,
+                label: item.label,
+                urlString: item.urlString,
+                bundleIdentifier: item.bundleIdentifier,
+                filePath: item.filePath,
+                sortOrder: item.sortOrder,
+                isEnabled: item.isEnabled
+            )
+            itemCopy.context = copy
+            modelContext.insert(itemCopy)
+        }
+
+        try? modelContext.save()
+    }
+
     /// 컨텍스트 삭제
     func deleteContext(_ context: WorkContext, from modelContext: ModelContext) {
         // 활성 상태면 먼저 숨기기

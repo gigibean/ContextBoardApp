@@ -51,14 +51,16 @@ struct SettingsView: View {
                 HStack {
                     Text("보드 토글")
                     Spacer()
-                    Text(hotkey)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(Color.gray.opacity(0.1))
-                        )
-                        .font(.system(size: 12, design: .monospaced))
+                    Picker("", selection: $hotkey) {
+                        ForEach(GlobalHotkeyManager.presets, id: \.label) { preset in
+                            Text(preset.label).tag(preset.label)
+                        }
+                    }
+                    .frame(width: 180)
+                    .onChange(of: hotkey) { _, newValue in
+                        updateSetting { $0.globalHotkey = newValue }
+                        GlobalHotkeyManager.shared.reregister(presetLabel: newValue)
+                    }
                 }
             }
 
@@ -66,7 +68,7 @@ struct SettingsView: View {
                 HStack {
                     Text("CLI 경로")
                     Spacer()
-                    if FileManager.default.fileExists(atPath: "/usr/local/bin/claude") {
+                    if MCPService.resolvedCLIPath != nil {
                         Label("설치됨", systemImage: "checkmark.circle.fill")
                             .foregroundStyle(.green)
                             .font(.caption)
@@ -113,7 +115,7 @@ struct SettingsView: View {
                     }
                     .disabled(
                         mcpViewModel.connectionState == .testing
-                        || !FileManager.default.fileExists(atPath: "/usr/local/bin/claude")
+                        || MCPService.resolvedCLIPath == nil
                     )
                 }
             }
@@ -152,7 +154,7 @@ struct SettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            Text("v1.0.0")
+            Text("v\(AppVersion.current)")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
 
