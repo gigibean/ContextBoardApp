@@ -3,7 +3,7 @@
 set -e
 
 APP_NAME="ContextBoard"
-VERSION="1.0.1"
+VERSION="1.0.2"
 DMG_NAME="${APP_NAME}-${VERSION}"
 BUILD_DIR=".build/release"
 APP_BUNDLE="dist/${APP_NAME}.app"
@@ -43,9 +43,9 @@ cat > "${APP_BUNDLE}/Contents/Info.plist" << 'PLIST'
     <key>CFBundleDisplayName</key>
     <string>ContextBoard</string>
     <key>CFBundleVersion</key>
-    <string>1.0.1</string>
+    <string>1.0.2</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0.1</string>
+    <string>1.0.2</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleInfoDictionaryVersion</key>
