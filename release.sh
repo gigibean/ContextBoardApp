@@ -69,12 +69,79 @@ echo "⬆️  원격 저장소에 푸시 중..."
 git push origin main
 git push origin "$TAG"
 
-# 5. GitHub Release 생성
+# 5. 체인지로그 생성
+echo ""
+echo "📋 체인지로그 생성 중..."
+PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+if [ -n "$PREV_TAG" ]; then
+    COMMIT_RANGE="${PREV_TAG}..HEAD"
+    COMPARE_URL="https://github.com/$(gh repo view --json nameWithOwner -q .nameWithOwner)/compare/${PREV_TAG}...${TAG}"
+else
+    COMMIT_RANGE="HEAD"
+    COMPARE_URL=""
+fi
+
+# 커밋 메시지를 카테고리별로 분류
+FEATS=""
+FIXES=""
+REFACTORS=""
+DOCS=""
+OTHERS=""
+
+while IFS= read -r MSG; do
+    [ -z "$MSG" ] && continue
+    # release 커밋은 제외
+    echo "$MSG" | grep -qiE "^release:" && continue
+
+    if echo "$MSG" | grep -qiE "^feat(\(.*\))?:"; then
+        ITEM="$(echo "$MSG" | sed -E 's/^feat(\(.*\))?:\s*//')"
+        FEATS="${FEATS}- ${ITEM}\n"
+    elif echo "$MSG" | grep -qiE "^fix(\(.*\))?:"; then
+        ITEM="$(echo "$MSG" | sed -E 's/^fix(\(.*\))?:\s*//')"
+        FIXES="${FIXES}- ${ITEM}\n"
+    elif echo "$MSG" | grep -qiE "^refactor(\(.*\))?:"; then
+        ITEM="$(echo "$MSG" | sed -E 's/^refactor(\(.*\))?:\s*//')"
+        REFACTORS="${REFACTORS}- ${ITEM}\n"
+    elif echo "$MSG" | grep -qiE "^docs(\(.*\))?:"; then
+        ITEM="$(echo "$MSG" | sed -E 's/^docs(\(.*\))?:\s*//')"
+        DOCS="${DOCS}- ${ITEM}\n"
+    else
+        OTHERS="${OTHERS}- ${MSG}\n"
+    fi
+done <<< "$(git log --pretty=format:"%s" ${COMMIT_RANGE} --no-merges)"
+
+# 체인지로그 조합
+CHANGELOG="## ${APP_NAME} ${TAG}\n"
+
+if [ -n "$FEATS" ]; then
+    CHANGELOG="${CHANGELOG}\n### ✨ 새 기능\n${FEATS}"
+fi
+if [ -n "$FIXES" ]; then
+    CHANGELOG="${CHANGELOG}\n### 🐛 버그 수정\n${FIXES}"
+fi
+if [ -n "$REFACTORS" ]; then
+    CHANGELOG="${CHANGELOG}\n### ♻️ 리팩토링\n${REFACTORS}"
+fi
+if [ -n "$DOCS" ]; then
+    CHANGELOG="${CHANGELOG}\n### 📝 문서\n${DOCS}"
+fi
+if [ -n "$OTHERS" ]; then
+    CHANGELOG="${CHANGELOG}\n### 🔧 기타\n${OTHERS}"
+fi
+
+if [ -n "$COMPARE_URL" ]; then
+    CHANGELOG="${CHANGELOG}\n**Full Changelog**: ${COMPARE_URL}"
+fi
+
+CHANGELOG_RENDERED="$(echo -e "$CHANGELOG")"
+echo "$CHANGELOG_RENDERED"
+
+# 6. GitHub Release 생성
 echo ""
 echo "🎉 GitHub Release 생성 중..."
 gh release create "$TAG" "dist/${DMG_NAME}" \
     --title "${APP_NAME} ${TAG}" \
-    --generate-notes
+    --notes "$CHANGELOG_RENDERED"
 
 echo ""
 echo "=================================="
